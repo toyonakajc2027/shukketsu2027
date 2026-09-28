@@ -100,6 +100,17 @@
   .mark.other { font-size: 11px; width: auto; padding: 0 8px; border-radius: 14px; color: var(--sub); }
   .marks { display: flex; gap: 6px; }
   .chip { font-size: 12px; color: var(--hint); }
+  .quick { display: flex; gap: 8px; flex-shrink: 0; }
+  /* クイック入力のある行（スマホ幅で予定名が切れないように）: 名前は2行まで折り返す・右端の > は出さない（行タップで詳細は開く） */
+  .row.has-quick { gap: 10px; padding-right: 12px; }
+  .row.has-quick .t { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+  .row.has-quick .chev { display: none; }
+  .row.has-quick .c { white-space: normal; }
+  @media (max-width: 350px) { .row.has-quick { padding-left: 12px; gap: 8px; } .row.has-quick .date-col .d { font-size: 15px; } .quick { gap: 6px; } }
+  .qa { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--surface); color: var(--sub); font-size: 17px; font-weight: 700; line-height: 1; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .15s var(--ease), color .15s var(--ease); }
+  .qa:active { transform: scale(.94); }
+  .qa.o.on { background: var(--ok); border-color: transparent; color: #fff; }
+  .qa.x.on { background: var(--ng); border-color: transparent; color: #fff; }
 
   /* ── 回答ボタン ── */
   .slot { margin-top: 14px; }
@@ -469,6 +480,7 @@
       '</div></div>';
     app.innerHTML = h;
     bindNav();
+    bindQuick();
     if (hero) {
       bindAnswer(hero.eventId, S.me, '');
       if (S.me && hero.mineAll) bindNote(hero.eventId, { name: S.me, comment: hero.mineComment || '' }, function (v) { hero.mineComment = v; });
@@ -518,11 +530,50 @@
   function eventRow(ev) {
     var d = splitDate(ev.date);
     var mine = ev.mine || '';
-    var right = mine ? markHtml(mine) : (ev.past || ev.closed ? '<span class="chip">未回答</span>' : '<span class="chip" style="color:var(--accent)">未回答</span>');
-    return '<div class="row tap" data-go="event" data-id="' + esc(ev.eventId) + '">' +
+    var right;
+    if (S.me && ev.forMe === false) right = '<span class="chip">対象外</span>';
+    else if (S.me && ev.forMe && !(ev.closed && !can('lateEdit'))) {
+      // クイック入力: 一覧から〇×だけ付けられる（主枠。△や他の枠・備考は詳細画面で）
+      right = '<div class="quick">' + [['〇', 'o', '出席'], ['×', 'x', '欠席']].map(function (q) {
+        return '<button type="button" class="qa ' + q[1] + (mine === q[0] || (q[0] === '〇' && mine === '○') ? ' on' : '') + '" data-eid="' + esc(ev.eventId) + '" data-mark="' + q[0] + '" aria-label="' + q[2] + '">' + q[0] + '</button>';
+      }).join('') + '</div>';
+    }
+    else right = mine ? markHtml(mine) : (ev.past || ev.closed ? '<span class="chip">未回答</span>' : '<span class="chip" style="color:var(--accent)">未回答</span>');
+    var quick = right.indexOf('class="quick"') !== -1;
+    return '<div class="row tap' + (quick ? ' has-quick' : '') + '" data-go="event" data-id="' + esc(ev.eventId) + '">' +
       '<div class="date-col' + (ev.date ? '' : ' blank') + '"><div class="d num">' + (ev.date ? d.md : '未定') + '</div>' + (ev.date ? '<div class="w">' + d.w + '</div>' : '') + '</div>' +
-      '<div class="main"><div class="t">' + esc(ev.title || ev.name) + '</div><div class="c num">出席 ' + ev.counts.o + ' · 欠席 ' + ev.counts.x + (ev.counts.t ? ' · 未定 ' + ev.counts.t : '') + ' · 未回答 ' + ev.counts.none + '</div></div>' +
+      '<div class="main"><div class="t">' + esc(ev.title || ev.name) + '</div><div class="c num">' + countsText(ev, quick) + '</div></div>' +
       right + '<div class="chev"></div></div>';
+  }
+  function countsText(ev, compact) {   // compact=クイック入力のある行（幅が狭いので空白を詰める）
+    var s = compact ? '' : ' ', dot = compact ? '·' : ' · ';
+    return '出席' + s + ev.counts.o + dot + '欠席' + s + ev.counts.x + (ev.counts.t ? dot + '未定' + s + ev.counts.t : '') + dot + '未回答' + s + ev.counts.none;
+  }
+  // 一覧のクイック入力。タップで即保存、同じ印をもう一度で取り消し。行の「詳細を開く」には伝えない
+  function bindQuick() {
+    app.querySelectorAll('.qa').forEach(function (btn) {
+      btn.onclick = function (e) {
+        e.stopPropagation(); e.preventDefault();
+        var eid = btn.getAttribute('data-eid');
+        var ev = S.events.find(function (x) { return x.eventId === eid; });
+        if (!ev || btn.disabled) return;
+        var box = btn.parentNode;
+        var already = btn.classList.contains('on');
+        var next = already ? '' : btn.getAttribute('data-mark');
+        var prev = ev.mine || '';
+        function paint(v) {
+          box.querySelectorAll('.qa').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-mark') === v); });
+          var c = box.parentNode.querySelector('.c'); if (c) c.textContent = countsText(ev, true);
+        }
+        applyLocal(eid, S.me, 0, next); paint(next);
+        call('submitAnswer', S.pass, eid, S.me, ev.slots[0], next, '').then(function () {
+          toast((ev.title || ev.name) + ' を' + (next === '〇' ? '出席' : next === '×' ? '欠席' : '未回答') + 'にしました');
+        }).catch(function (err) {
+          applyLocal(eid, S.me, 0, prev); paint(prev);
+          toast('保存できませんでした。' + err.message);
+        });
+      };
+    });
   }
 
   // ── 予定の詳細
