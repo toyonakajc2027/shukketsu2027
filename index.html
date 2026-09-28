@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>豊中JC 出欠 2027</title>
+<style>
+  /* ── トークン ─────────────────────────────────────────
+     書体: 端末の標準書体（iPhone=SF/ヒラギノ、Android=Noto）。Apple製品と同じ字面を、読み込みゼロで出す。
+     色: 無彩色の階調＋アクセント1色（#0071e3）。出欠の3色だけ意味色として許す。影は使わず、面と線と余白で階層を作る。 */
+  :root {
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --sub: #6e6e73;
+    --hint: #86868b;
+    --line: #d2d2d7;
+    --line-soft: #e8e8ed;
+    --fill: #f2f2f4;
+    --accent: #0071e3;
+    --accent-press: #006edb;
+    --ok: #1c7a42;   --ok-soft: #e4f3e9;
+    --ng: #c93c3c;   --ng-soft: #fbeaea;
+    --tbd: #9a5b00;  --tbd-soft: #fbf0dc;
+    --r-pill: 980px;
+    --r-block: 10px;
+    --r-card: 14px;
+    --ease: cubic-bezier(.4, 0, .6, 1);
+    --spring: cubic-bezier(.2, .9, .3, 1.2);
+    --font: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic Medium", sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "palt";
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; padding: 0; }
+  a { color: var(--accent); text-decoration: none; }
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  #app { max-width: 600px; margin: 0 auto; padding: 0 20px 64px; min-height: 100vh; }
+  .screen { animation: fade .22s var(--ease); }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }
+  }
+
+  /* ── 文字階層 ── */
+  .eyebrow { font-size: 12px; font-weight: 500; color: var(--sub); letter-spacing: .04em; }
+  a.eyebrow { display: inline-block; align-self: flex-start; color: var(--sub); padding: 6px 0 2px; margin-top: -6px; }   /* 団体名はホーム(/)へ戻るリンク。静的配信のときだけ a になる */
+  h1.title { font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; margin: 4px 0 0; }
+  h2.section { font-size: 13px; font-weight: 600; color: var(--sub); margin: 28px 0 8px; letter-spacing: .02em; }
+  h3.ev-title { font-size: 22px; font-weight: 700; letter-spacing: -.015em; line-height: 1.25; margin: 2px 0 0; }
+  .caption { font-size: 13px; color: var(--sub); }
+  .hint { font-size: 12px; color: var(--sub); }
+
+  /* ── トップバー ── */
+  .top { display: flex; justify-content: space-between; align-items: flex-end; padding: 22px 0 12px; }
+  .top .who { text-align: right; font-size: 13px; color: var(--sub); line-height: 1.4; }
+  .top .who b { display: block; color: var(--text); font-weight: 600; font-size: 15px; }
+  .top .who a { font-size: 12px; }
+  .back { display: inline-block; padding: 18px 0 8px; font-size: 15px; color: var(--accent); }
+  .back::before { content: ""; display: inline-block; width: 9px; height: 9px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-right: 6px; position: relative; top: -1px; }
+
+  /* ── 面 ── */
+  .card { background: var(--surface); border-radius: var(--r-card); padding: 18px 18px 16px; }
+  .card + .card { margin-top: 10px; }
+  .list { background: var(--surface); border-radius: var(--r-card); overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 13px 18px; border-top: 1px solid var(--line-soft); min-height: 58px; }
+  .row:first-child { border-top: 0; }
+  .row.tap { cursor: pointer; transition: background .15s var(--ease); }
+  .row.tap:active { background: var(--fill); }
+  .row .main { flex: 1; min-width: 0; }
+  .row .t { font-size: 15px; font-weight: 600; letter-spacing: -.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .c { font-size: 12px; color: var(--sub); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .date-col { width: 46px; flex-shrink: 0; text-align: center; line-height: 1.1; }
+  .date-col .d { font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
+  .date-col .w { font-size: 11px; color: var(--sub); margin-top: 3px; }
+  .date-col.blank .d { color: var(--hint); font-weight: 500; font-size: 13px; }
+  .chev { width: 8px; height: 8px; border-right: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line); transform: rotate(-45deg); flex-shrink: 0; }
+  .group-h { font-size: 12px; font-weight: 600; color: var(--sub); padding: 14px 18px 4px; background: var(--surface); }
+  .group-h:first-child { padding-top: 12px; }
+
+  /* ── ステータスの印 ── */
+  .mark { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; font-size: 14px; font-weight: 700; flex-shrink: 0; background: var(--fill); color: var(--hint); }
+  .mark.o { background: var(--ok-soft); color: var(--ok); }
+  .mark.x { background: var(--ng-soft); color: var(--ng); }
+  .mark.t { background: var(--tbd-soft); color: var(--tbd); }
+  .mark.n { background: transparent; border: 1.5px dashed var(--line); color: transparent; }
+  .mark.other { font-size: 11px; width: auto; padding: 0 8px; border-radius: 14px; color: var(--sub); }
+  .marks { display: flex; gap: 6px; }
+  .chip { font-size: 12px; color: var(--hint); }
+
+  /* ── 回答ボタン ── */
+  .slot { margin-top: 14px; }
+  .slot + .slot { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+  .slot .slot-name { font-size: 13px; font-weight: 600; color: var(--sub); margin-bottom: 8px; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .ans {
+    height: 56px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    transition: transform .12s var(--ease), background .18s var(--ease), border-color .18s var(--ease), color .18s var(--ease);
+    color: var(--text);
+  }
+  .ans .m { font-size: 20px; font-weight: 700; line-height: 1; }
+  .ans .l { font-size: 11px; font-weight: 500; opacity: .85; }
+  .ans:active { transform: scale(.96); }
+  .ans.on { color: #fff; border-color: transparent; }
+  .ans.o.on { background: var(--ok); }
+  .ans.x.on { background: var(--ng); }
+  .ans.t.on { background: var(--tbd); }
+  .ans.on { animation: pop .28s var(--spring); }
+  @keyframes pop { 0% { transform: scale(.94); } 100% { transform: none; } }
+  .ans[disabled] { opacity: .5; cursor: default; }
+  .ans[disabled]:active { transform: none; }
+  .saved { font-size: 12px; color: var(--sub); margin-top: 8px; min-height: 16px; transition: opacity .3s var(--ease); opacity: 0; }
+  .saved.show { opacity: 1; }
+  .saved.err { color: var(--ng); }
+
+  /* ── ヒーロー（つぎの予定） ── */
+  .hero { background: var(--surface); border-radius: var(--r-card); padding: 20px 18px 18px; }
+  .hero .when { display: flex; align-items: baseline; gap: 10px; }
+  .hero .when .d { font-size: 34px; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
+  .hero .when .w { font-size: 14px; color: var(--sub); }
+  .hero .meta { font-size: 13px; color: var(--sub); margin-top: 6px; }
+  .hero .meta span + span::before { content: "·"; margin: 0 6px; color: var(--line); }
+  .deadline { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sub); margin-top: 10px; }
+  .deadline.soon { color: var(--accent); font-weight: 600; }
+  .deadline.over { color: var(--hint); }
+  .deadline .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .hero .more { display: block; margin-top: 14px; font-size: 13px; }
+
+  /* ── 集計 ── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .stat .v { font-size: 26px; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+  .stat .k { font-size: 11px; color: var(--sub); margin-top: 4px; }
+  .stat.o .v { color: var(--ok); } .stat.x .v { color: var(--ng); } .stat.t .v { color: var(--tbd); } .stat.n .v { color: var(--hint); }
+  .bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--line-soft); margin-top: 14px; }
+  .bar i { display: block; height: 100%; transition: width .6s var(--ease); }
+  .bar .o { background: var(--ok); } .bar .x { background: var(--ng); } .bar .t { background: var(--tbd); }
+  .unans { margin-top: 12px; font-size: 12px; color: var(--sub); line-height: 1.7; }
+  .unans b { font-weight: 600; color: var(--text); }
+
+  /* ── 備考 ── */
+  textarea.note {
+    width: 100%; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-block);
+    background: var(--surface); resize: none; min-height: 44px; outline: none; transition: border-color .15s var(--ease);
+  }
+  textarea.note:focus { border-color: var(--accent); }
+  textarea.note[disabled] { background: var(--fill); color: var(--sub); }
+
+  /* ── ボタン ── */
+  .btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 22px; border-radius: var(--r-pill); background: var(--accent); color: #fff; font-weight: 600; font-size: 15px; transition: transform .12s var(--ease), background .15s var(--ease); }
+  .btn:active { transform: scale(.97); background: var(--accent-press); }
+  .btn.full { width: 100%; }
+  .btn.quiet { background: var(--fill); color: var(--text); }
+  .btn.small { height: 34px; padding: 0 14px; font-size: 13px; }
+  .btn[disabled] { opacity: .5; }
+  .link { color: var(--accent); font-size: 13px; }
+  .text-btn { font-size: 13px; color: var(--accent); padding: 8px 0; }
+
+  /* ── 入力 ── */
+  .field { display: block; margin-top: 12px; }
+  .field .lab { font-size: 12px; color: var(--sub); margin-bottom: 4px; }
+  .input { width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--r-block); background: var(--surface); outline: none; transition: border-color .15s var(--ease); }
+  .input:focus { border-color: var(--accent); }
+  select.input { -webkit-appearance: none; appearance: none; }
+  .search { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 8px 0 10px; }
+  .search .input { height: 42px; border-radius: var(--r-block); }
+  .err { color: var(--ng); font-size: 13px; margin-top: 8px; }
+
+  /* ── ゲート ── */
+  .gate { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 40px 0; }
+  .gate h1.title { font-size: 34px; }
+  .gate p { color: var(--sub); margin: 10px 0 22px; font-size: 14px; }
+
+  /* ── 個人 ── */
+  .ring-wrap { display: flex; align-items: center; gap: 22px; }
+  .ring { width: 108px; height: 108px; position: relative; flex-shrink: 0; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 9; stroke-linecap: round; }
+  .ring .track { stroke: var(--line-soft); }
+  .ring .val { stroke: var(--text); transition: stroke-dashoffset 1s var(--ease); }
+  .ring .n { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; letter-spacing: -.03em; }
+  .ring .n small { font-size: 12px; font-weight: 500; color: var(--sub); margin-left: 1px; }
+  .counts { display: flex; gap: 16px; font-size: 13px; color: var(--sub); margin-top: 6px; }
+  .counts b { color: var(--text); font-weight: 600; }
+
+  /* ── 履歴 ── */
+  .hist { margin-top: 8px; }
+  .h-row { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--sub); }
+  .h-row .t { width: 76px; flex-shrink: 0; }
+  .h-row .n { width: 84px; flex-shrink: 0; color: var(--text); }
+  .h-row.changed .v { color: var(--ng); font-weight: 600; }
+  details.quiet summary { list-style: none; cursor: pointer; font-size: 12px; color: var(--hint); padding: 12px 0; }
+  details.quiet summary::-webkit-details-marker { display: none; }
+
+  /* ── 役員 ── */
+  .tabs { display: flex; gap: 4px; background: var(--fill); padding: 3px; border-radius: 10px; margin-top: 14px; }
+  .tabs button { flex: 1; height: 32px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--sub); transition: background .15s var(--ease), color .15s var(--ease); }
+  .tabs button.on { background: var(--surface); color: var(--text); font-weight: 600; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -18px; padding: 0 18px; }
+  table.mx { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+  table.mx th, table.mx td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); text-align: center; }
+  table.mx th { font-weight: 600; color: var(--sub); font-size: 11px; }
+  table.mx td:first-child, table.mx th:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
+  table.mx .rate { font-weight: 700; }
+  textarea.bulk { width: 100%; min-height: 160px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-block); background: var(--surface); font-family: ui-monospace, Menlo, monospace; font-size: 12px; outline: none; }
+  pre.preview { white-space: pre-wrap; font-family: inherit; font-size: 13px; background: var(--fill); padding: 12px 14px; border-radius: var(--r-block); margin: 8px 0 0; }
+  .ok-msg { color: var(--ok); font-size: 13px; margin-top: 8px; }
+  .toggle { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; font-size: 14px; }
+  .sw { width: 46px; height: 28px; border-radius: 14px; background: var(--line); position: relative; transition: background .2s var(--ease); flex-shrink: 0; }
+  .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .2s var(--spring); }
+  .sw.on { background: var(--ok); }
+  .sw.on::after { transform: translateX(18px); }
+  .proxy-mark { cursor: pointer; }
+
+  /* ── 空・読み込み ── */
+  .loading { padding: 40px 0; text-align: center; color: var(--hint); font-size: 13px; }
+  .loading::before { content: ""; display: block; width: 20px; height: 20px; margin: 0 auto 10px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--text); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { padding: 28px 18px; text-align: center; color: var(--sub); font-size: 13px; }
+
+  /* ── トースト ── */
+  #toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px); background: var(--text); color: #fff; padding: 10px 18px; border-radius: var(--r-pill); font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .25s var(--ease), transform .25s var(--ease); max-width: 90vw; text-align: center; z-index: 10; }
+  #toast.show { opacity: 1; transform: translateX(-50%); }
+
+  .foot { margin-top: 36px; font-size: 12px; color: var(--hint); display: flex; gap: 16px; flex-wrap: wrap; }
+  .live { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--hint); }
+  .live i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+  @media print {
+    body { background: #fff; }
+    #app { max-width: none; padding: 0; }
+    .no-print, .back, .top .who, .foot, #toast { display: none !important; }
+    .list, .card, .hero { border: 1px solid #ccc; border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">読み込み中</div></div>
+<div id="toast"></div>
+<script>
+/* ────────────────────────────────────────────────────────
+   豊中JC 出欠 2027年度版 — 画面（1枚）
+   流れ: 合言葉 → 自分えらび（初回だけ） → ホーム（つぎの予定に直接〇×△） → 予定の詳細 / 個人 / 運営
+   階層: 合言葉で 正副 ⊃ 理事 ⊃ メンバー を見分ける。何が使えるかはサーバーが返す caps だけで決める（画面側に表を持たない）
+   保存はタップした瞬間。送信ボタンは無い。
+   ──────────────────────────────────────────────────────── */
+(function () {
+  'use strict';
+
+  // ── 端末の記憶（消えても名前を選び直すだけで済む）
+  var K_PASS = 'tjc27.pass', K_ME = 'tjc27.me';   // 2026版(tjc.*)と同じドメインに置いても混ざらないよう別キー
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    del: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
+  };
+
+  // ── サーバー呼び出し
+  //   1) Apps Script が直接この画面を配信している時: google.script.run
+  //   2) 静的ホスティング（本番の通常経路）: API_URL へ fetch（未ログイン扱いなので複数アカウント問題を受けない）
+  //   3) どちらも無い時: モック（ローカルで見た目を確認する用）
+  var API_URL = 'https://script.google.com/macros/s/AKfycbyWyLKfWBhxt1LPIXHYwSJ6k2CsQ3ft89sA8H0tWZJk642oFEVdBh6VZT7Fyz5ZIuQc/exec';   // GAS「豊中JC出欠2027」
+  var HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
+  var USE_API = !HAS_GAS && !window.MOCK && /^https?:/.test(API_URL);
+  function call(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      if (HAS_GAS) {
+        var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) { reject(new Error(e && e.message || String(e))); });
+        r[fn].apply(r, args);
+      } else if (USE_API) {
+        fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn: fn, args: args }), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, credentials: 'omit', redirect: 'follow' })
+          .then(function (res) { return res.json(); })
+          .then(function (j) { if (j && j.ok) resolve(j.result); else reject(new Error(j && j.error || 'サーバーエラー')); })
+          .catch(function (e) { reject(new Error('サーバーに接続できません。電波を確認してください（' + (e && e.message || e) + '）')); });
+      } else if (window.MOCK && window.MOCK[fn]) {
+        setTimeout(function () { try { resolve(window.MOCK[fn].apply(null, args)); } catch (e) { reject(e); } }, 250);
+      } else {
+        reject(new Error('サーバーに接続できません'));
+      }
+    });
+  }
+
+  // ── 状態
+  var S = { pass: store.get(K_PASS), me: store.get(K_ME), tier: '', tierLabel: '', caps: {}, roster: [], events: [], today: '', appUrl: '', graphUrl: '', boards: {}, proxy: false };
+  var app = document.getElementById('app');
+  var pollTimer = null;
+
+  // ── 入口
+  function boot() {
+    var initial = { view: 'home' };
+    function start(loc) {
+      var p = (loc && loc.parameter) || {};
+      if (p.me) { S.me = normName(p.me); store.set(K_ME, S.me); }
+      if (p.e) initial = { view: 'event', id: p.e };
+      else if (p.p) initial = { view: 'person', name: p.p };
+      else if (p.admin !== undefined) initial = { view: 'admin' };
+      if (HAS_GAS && google.script.history) {
+        google.script.history.setChangeHandler(function (e) {
+          var st = e && e.state;
+          if (st && st.view) render(st, false);
+        });
+      } else {
+        window.addEventListener('popstate', function (e) {
+          var st = e.state;
+          if (st && st.view) render(st, false); else if (S.pass && S.me) render({ view: 'home' }, false);
+        });
+      }
+      if (!S.pass) { render({ view: 'gate' }, false); return; }
+      load().then(function () {
+        if (!S.me) render({ view: 'pick', next: initial }, false);
+        else render(initial, false);
+      }).catch(function (err) {
+        if (/合言葉/.test(err.message) || /ok:false/.test(err.message)) { S.pass = ''; store.del(K_PASS); render({ view: 'gate' }, false); }
+        else renderError(err);
+      });
+    }
+    if (HAS_GAS && google.script.url) google.script.url.getLocation(start); else start({ parameter: parseQuery() });
+  }
+  function parseQuery() {
+    var q = {}; location.search.replace(/^\?/, '').split('&').forEach(function (kv) { if (!kv) return; var a = kv.split('='); q[decodeURIComponent(a[0])] = decodeURIComponent(a[1] || ''); });
+    return q;
+  }
+
+  // 名簿・イベント・自分の回答を1往復で
+  function load() {
+    return call('getBootstrap', S.pass, S.me).then(function (b) {
+      if (!b || !b.ok) throw new Error('合言葉が違います');
+      S.tier = b.tier; S.tierLabel = b.tierLabel; S.caps = b.caps || {};
+      S.roster = b.roster; S.events = b.events; S.today = b.today; S.graphUrl = b.graphUrl;
+      S.appUrl = HAS_GAS ? b.appUrl : (location.origin + location.pathname); // 配布用は「この画面のURL」
+      if (S.me && !b.me) { S.me = ''; store.del(K_ME); } // 名簿から消えた名前は忘れる
+    });
+  }
+
+  // ── 画面遷移
+  function go(state) { render(state, true); }
+  function render(state, push) {
+    S.view = state;
+    stopPolling();
+    if (push) {
+      var hash = state.view + (state.id ? '/' + state.id : '');
+      if (HAS_GAS && google.script.history) { try { google.script.history.push(state, {}, hash); } catch (e) {} }
+      else { try { history.pushState(state, '', '#' + hash); } catch (e) {} }
+    }
+    window.scrollTo(0, 0);
+    var v = state.view;
+    if (v === 'gate') return viewGate();
+    if (v === 'pick') return viewPick(state);
+    if (v === 'event') return viewEvent(state.id);
+    if (v === 'person') return viewPerson(state.name || S.me);
+    if (v === 'admin') return viewAdmin(state.tab || 'summary');
+    if (v === 'print') return viewPrint(state.id);
+    return viewHome();
+  }
+  function renderError(err) {
+    app.innerHTML = '<div class="screen"><div class="top"><div><div class="eyebrow">豊中JC</div><h1 class="title">出欠</h1></div></div>' +
+      '<div class="card"><div style="font-weight:600">読み込めませんでした</div><div class="caption" style="margin-top:6px">' + esc(err.message) + '</div>' +
+      '<div style="margin-top:14px"><button class="btn small" onclick="location.reload()">もう一度読み込む</button></div></div></div>';
+  }
+
+  // ── ゲート（合言葉）
+  function viewGate() {
+    app.innerHTML =
+      '<div class="screen gate">' +
+      orgLabel() + '<h1 class="title">出欠</h1>' +
+      '<p>LINEで案内している合言葉を入れてください。この端末には記憶されるので、次回からは不要です。</p>' +
+      '<input class="input" id="pass" type="text" inputmode="latin" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="合言葉">' +
+      '<div class="err" id="gateErr"></div>' +
+      '<div style="margin-top:16px"><button class="btn full" id="gateBtn">はじめる</button></div>' +
+      '</div>';
+    var input = document.getElementById('pass');
+    var btn = document.getElementById('gateBtn');
+    function submit() {
+      var t = input.value.trim();
+      if (!t) return;
+      btn.disabled = true; btn.textContent = '確認中';
+      S.pass = t;
+      load().then(function () {
+        store.set(K_PASS, t);
+        if (!S.me) render({ view: 'pick', next: { view: 'home' } }, false); else render({ view: 'home' }, false);
+      }).catch(function (err) {
+        S.pass = '';
+        btn.disabled = false; btn.textContent = 'はじめる';
+        document.getElementById('gateErr').textContent = /合言葉/.test(err.message) ? '合言葉が違います。LINEグループの案内をもう一度確認してください。' : err.message;
+      });
+    }
+    btn.onclick = submit;
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+    setTimeout(function () { input.focus(); }, 50);
+  }
+
+  // ── 自分えらび（初回だけ）
+  function viewPick(state) {
+    var html = '<div class="screen"><div class="top"><div><div class="eyebrow">最初の1回だけ</div><h1 class="title">あなたの名前</h1></div></div>' +
+      '<div class="caption" style="margin-bottom:8px">タップすると、この端末ではずっとあなたとして開きます。</div>' +
+      '<div class="search"><input class="input" id="q" type="search" placeholder="名前で探す" autocomplete="off"></div>' +
+      '<div class="list" id="rosterList"></div></div>';
+    app.innerHTML = html;
+    var q = document.getElementById('q');
+    var listEl = document.getElementById('rosterList');
+    function draw() {
+      var kw = normName(q.value).replace(/ /g, '');
+      var out = '';
+      S.roster.forEach(function (g) {
+        var ms = g.members.filter(function (m) { return !kw || m.name.replace(/ /g, '').indexOf(kw) !== -1; });
+        if (!ms.length) return;
+        out += '<div class="group-h">' + esc(g.committee) + '</div>';
+        ms.forEach(function (m) {
+          out += '<div class="row tap" data-name="' + esc(m.name) + '"><div class="main"><div class="t">' + esc(m.name) + '</div>' + (m.role ? '<div class="c">' + esc(m.role) + '</div>' : '') + '</div><div class="chev"></div></div>';
+        });
+      });
+      listEl.innerHTML = out || '<div class="empty">見つかりません。姓だけで探してみてください。</div>';
+    }
+    draw();
+    q.addEventListener('input', draw);
+    listEl.addEventListener('click', function (e) {
+      var row = e.target.closest('.row'); if (!row) return;
+      S.me = row.getAttribute('data-name'); store.set(K_ME, S.me);
+      toast(S.me.replace(/ /g, '') + ' さんとして続けます');
+      load().then(function () { render(state.next || { view: 'home' }, false); });
+    });
+    setTimeout(function () { q.focus(); }, 80);
+  }
+
+  // ── ホーム
+  function viewHome() {
+    var up = S.events.filter(function (e) { return e.date && e.date >= S.today; });
+    var undated = S.events.filter(function (e) { return !e.date; });
+    var past = S.events.filter(function (e) { return e.date && e.date < S.today; }).reverse();
+    var hero = up.length ? up[0] : null;
+    var rest = up.slice(1);
+    var h = '<div class="screen">' + topBar() ;
+
+    if (hero) {
+      h += '<h2 class="section" style="margin-top:6px">つぎの予定</h2>' + heroCard(hero);
+    } else {
+      h += '<h2 class="section" style="margin-top:6px">つぎの予定</h2><div class="card"><div class="empty" style="padding:8px 0">まだ登録されていません</div></div>';
+    }
+    if (rest.length) {
+      h += '<h2 class="section">これから</h2><div class="list">' + rest.map(eventRow).join('') + '</div>';
+    }
+    if (undated.length) {
+      h += '<h2 class="section">日付が未定</h2><div class="list">' + undated.map(eventRow).join('') + '</div>';
+    }
+    if (past.length) {
+      h += '<details class="quiet" id="pastBox"><summary>終了した予定 ' + past.length + '件</summary><div class="list">' + past.map(eventRow).join('') + '</div></details>';
+    }
+    h += '<div class="foot no-print">' +
+      (S.me ? '<a href="#" data-go="person">' + esc(S.me.replace(/ /g, '')) + ' さんの出席記録</a>' : '') +
+      '<a href="#" data-go="admin">' + (can('summary') ? '運営メニュー' : '予定の登録・リマインド') + '</a>' +
+      '<a href="#" id="myLink">自分専用リンク</a>' +
+      (HAS_GAS ? '' : '<a href="/">ホーム</a>') +   // 静的配信(GitHub Pages)のときだけ、入口(ホーム)へ戻る道を出す
+      '<a href="#" id="logout" style="color:var(--hint)">ログアウト' + (S.tierLabel ? '（' + esc(S.tierLabel) + '）' : '') + '</a>' +
+      '</div></div>';
+    app.innerHTML = h;
+    bindNav();
+    if (hero) {
+      bindAnswer(hero.eventId, S.me, '');
+      if (S.me && hero.mineAll) bindNote(hero.eventId, { name: S.me, comment: hero.mineComment || '' }, function (v) { hero.mineComment = v; });
+    }
+    var ml = document.getElementById('myLink');
+    if (ml) ml.onclick = function (e) { e.preventDefault(); showMyLink(); };
+    var lo = document.getElementById('logout');
+    if (lo) lo.onclick = function (e) {
+      e.preventDefault();
+      if (!confirm('この端末の記憶（合言葉と名前）を消して、最初の画面に戻ります。よろしいですか？')) return;
+      store.del(K_PASS); store.del(K_ME);
+      S.pass = ''; S.me = ''; S.tier = ''; S.tierLabel = ''; S.caps = {};
+      render({ view: 'gate' }, false);
+    };
+  }
+
+  // 階層で使える機能か（サーバーの ACCESS 表から来た caps を見るだけ）
+  function can(feature) { return !!(S.caps && S.caps[feature]); }
+
+  function orgLabel() {   // 左上の団体名。GitHub Pages 配信のときはホーム(/)へのリンク
+    return HAS_GAS ? '<div class="eyebrow">豊中青年会議所</div>' : '<a class="eyebrow" href="/">豊中青年会議所</a>';
+  }
+  function topBar() {
+    var name = S.me ? S.me.replace(/ /g, '') : '';
+    return '<div class="top"><div>' + orgLabel() + '<h1 class="title">出欠</h1></div>' +
+      '<div class="who">' + (name ? '<b>' + esc(name) + '</b><a href="#" data-go="pick">名前を変える</a>' : '') + '</div></div>';
+  }
+
+  function heroCard(ev) {
+    var d = splitDate(ev.date);
+    var h = '<div class="hero" data-eid="' + esc(ev.eventId) + '">' +
+      '<div class="when"><div class="d num">' + d.md + '</div><div class="w">' + d.w + '</div></div>' +
+      '<h3 class="ev-title">' + esc(ev.title || ev.name) + '</h3>' +
+      '<div class="meta">' + (ev.place ? '<span>' + esc(ev.place) + '</span>' : '') + (ev.target && ev.target !== '全員' ? '<span>対象: ' + esc(ev.target) + '</span>' : '') + '</div>' +
+      deadlineLine(ev);
+    h += answerBlock(ev, mineStatuses(ev), false, '');
+    if (S.me && ev.mineAll) h += noteBlock(ev.mineComment || '', false);
+    h += '<a href="#" class="more" data-go="event" data-id="' + esc(ev.eventId) + '">みんなの回答を見る（出席 ' + ev.counts.o + ' · 欠席 ' + ev.counts.x + ' · 未回答 ' + ev.counts.none + '）</a>';
+    h += '</div>';
+    return h;
+  }
+
+  function mineStatuses(ev) {
+    return ev.mineAll || ev.slots.map(function (s, i) { return i === 0 ? (ev.mine || '') : ''; });
+  }
+
+  function eventRow(ev) {
+    var d = splitDate(ev.date);
+    var mine = ev.mine || '';
+    var right = mine ? markHtml(mine) : (ev.past || ev.closed ? '<span class="chip">未回答</span>' : '<span class="chip" style="color:var(--accent)">未回答</span>');
+    return '<div class="row tap" data-go="event" data-id="' + esc(ev.eventId) + '">' +
+      '<div class="date-col' + (ev.date ? '' : ' blank') + '"><div class="d num">' + (ev.date ? d.md : '未定') + '</div>' + (ev.date ? '<div class="w">' + d.w + '</div>' : '') + '</div>' +
+      '<div class="main"><div class="t">' + esc(ev.title || ev.name) + '</div><div class="c num">出席 ' + ev.counts.o + ' · 欠席 ' + ev.counts.x + (ev.counts.t ? ' · 未定 ' + ev.counts.t : '') + ' · 未回答 ' + ev.counts.none + '</div></div>' +
+      right + '<div class="chev"></div></div>';
+  }
+
+  // ── 予定の詳細
+  function viewEvent(eventId) {
+    app.innerHTML = '<div class="screen"><a class="back" href="#" data-go="home">一覧</a><div class="loading">読み込み中</div></div>';
+    bindNav();
+    call('getEventBoard', S.pass, eventId).then(function (b) {
+      S.boards[eventId] = b;
+      drawEvent(eventId);
+      startPolling(eventId);
+    }).catch(renderError);
+  }
+
+  function drawEvent(eventId) {
+    var b = S.boards[eventId]; var ev = b.event;
+    var d = splitDate(ev.date);
+    var me = findMember(b, S.me);
+    var locked = ev.closed && !can('lateEdit');
+    var h = '<div class="screen"><a class="back" href="#" data-go="home">一覧</a>';
+    h += '<div class="hero">' +
+      '<div class="when"><div class="d num">' + (ev.date ? d.md : '日付未定') + '</div><div class="w">' + (ev.date ? d.w : '') + '</div></div>' +
+      '<h3 class="ev-title">' + esc(ev.title || ev.name) + '</h3>' +
+      '<div class="meta">' + (ev.place ? '<span>' + esc(ev.place) + '</span>' : '') + (ev.target && ev.target !== '全員' ? '<span>対象: ' + esc(ev.target) + '</span>' : '') + '</div>' +
+      (ev.background ? '<div class="caption" style="margin-top:8px;white-space:pre-wrap">' + esc(ev.background) + '</div>' : '') +
+      deadlineLine(ev);
+    if (me) {
+      h += answerBlock(ev, me.status, locked, '');
+      h += noteBlock(me.comment, locked);
+    } else if (S.me) {
+      h += '<div class="caption" style="margin-top:14px">この予定の対象は「' + esc(ev.target) + '」のため、あなたの回答枠はありません。</div>';
+    }
+    h += '</div>';
+
+    // 集計
+    var c = countBoard(b, 0);
+    h += '<div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div class="eyebrow">' + esc(ev.slots[0]) + 'の状況</div><span class="live" id="liveMark"><i></i>' + esc(b.serverTime || '') + ' 時点</span></div>' +
+      '<div class="stats" style="margin-top:12px">' +
+      '<div class="stat o"><div class="v num" data-count="o">' + c.o + '</div><div class="k">出席</div></div>' +
+      '<div class="stat x"><div class="v num" data-count="x">' + c.x + '</div><div class="k">欠席</div></div>' +
+      '<div class="stat t"><div class="v num" data-count="t">' + c.t + '</div><div class="k">未定</div></div>' +
+      '<div class="stat n"><div class="v num" data-count="n">' + c.n + '</div><div class="k">未回答</div></div></div>' +
+      barHtml(c);
+    if (c.names.length) h += '<div class="unans"><b>未回答</b> ' + c.names.map(function (n) { return esc(n.replace(/ /g, '')); }).join('、') + '</div>';
+    h += '</div>';
+
+    // 全員の回答
+    h += '<h2 class="section">みんなの回答' + (ev.slots.length > 1 ? '<span class="hint" style="font-weight:400;margin-left:8px">' + esc(ev.slots.join(' / ')) + '</span>' : '') + '</h2>';
+    h += '<div class="list" id="memberList">' + membersHtml(b) + '</div>';
+
+    // 履歴・役員操作
+    h += '<details class="quiet" id="histBox"><summary>変更履歴を見る</summary><div class="hist" id="hist"></div></details>';
+    if (can('lateEdit')) {
+      h += '<div class="card no-print" style="margin-top:6px"><div class="toggle"><div><div style="font-weight:600">代理入力</div><div class="hint">他の人の印をタップして回します。記録に入力者として残ります。</div></div><div class="sw' + (S.proxy ? ' on' : '') + '" id="proxySw"></div></div>' +
+        '<div style="display:flex;gap:10px;margin-top:4px"><a href="#" class="text-btn" data-go="print" data-id="' + esc(ev.eventId) + '">印刷用に表示</a><a href="#" class="text-btn" data-go="admin" data-tab="remind" data-id="' + esc(ev.eventId) + '">リマインド</a></div></div>';
+    }
+    h += '</div>';
+    app.innerHTML = h;
+    bindNav();
+    if (me) {
+      bindAnswer(eventId, S.me, '');
+      bindNote(eventId, me);
+    }
+    var sw = document.getElementById('proxySw');
+    if (sw) sw.onclick = function () { S.proxy = !S.proxy; drawEvent(eventId); };
+    document.getElementById('memberList').addEventListener('click', function (e) {
+      var m = e.target.closest('.proxy-mark'); if (!m) return;
+      proxyTap(eventId, m.getAttribute('data-name'), +m.getAttribute('data-si'));
+    });
+    var hb = document.getElementById('histBox');
+    hb.addEventListener('toggle', function () { if (hb.open) loadHistory(eventId); });
+  }
+
+  function membersHtml(b) {
+    var ev = b.event;
+    var out = '';
+    b.groups.forEach(function (g) {
+      out += '<div class="group-h">' + esc(g.committee) + '</div>';
+      g.members.forEach(function (m) {
+        var self = m.name === S.me;
+        var marks = ev.slots.map(function (slot, si) {
+          var st = m.status[si] || '';
+          var canProxy = S.proxy && can('lateEdit') && !self;
+          return '<span class="' + (canProxy ? 'proxy-mark' : '') + '" data-name="' + esc(m.name) + '" data-si="' + si + '">' + markHtml(st) + '</span>';
+        }).join('');
+        out += '<div class="row" style="min-height:50px;padding-top:9px;padding-bottom:9px' + (self ? ';background:var(--fill)' : '') + '">' +
+          '<div class="main"><div class="t" style="font-weight:' + (self ? '700' : '500') + '"><a href="#" data-go="person" data-name="' + esc(m.name) + '" style="color:inherit">' + esc(m.name) + '</a>' + (m.role ? ' <span class="hint">' + esc(m.role) + '</span>' : '') + '</div>' +
+          (m.comment ? '<div class="c">' + esc(m.comment) + '</div>' : '') + '</div>' +
+          '<div class="marks">' + marks + '</div></div>';
+      });
+    });
+    return out;
+  }
+
+  function countBoard(b, si) {
+    var o = 0, x = 0, t = 0, n = 0, names = [];
+    b.groups.forEach(function (g) { g.members.forEach(function (m) {
+      var st = m.status[si] || '';
+      if (st === '〇' || st === '○') o++; else if (st === '×') x++; else if (st === '△') t++; else if (!st) { n++; names.push(m.name); } else o++;
+    }); });
+    return { o: o, x: x, t: t, n: n, total: o + x + t + n, names: names };
+  }
+  function barHtml(c) {
+    var tot = c.total || 1;
+    return '<div class="bar"><i class="o" style="width:' + (c.o * 100 / tot) + '%"></i><i class="t" style="width:' + (c.t * 100 / tot) + '%"></i><i class="x" style="width:' + (c.x * 100 / tot) + '%"></i></div>';
+  }
+
+  // 45秒ごとに静かに最新化（画面が見えている時だけ）。数字が変わった時だけ描き直す
+  function startPolling(eventId) {
+    stopPolling();
+    pollTimer = setInterval(function () {
+      if (document.visibilityState !== 'visible') return;
+      if (!S.view || S.view.view !== 'event' || S.view.id !== eventId) return stopPolling();
+      if (document.activeElement && document.activeElement.id === 'note') return;
+      call('getEventBoard', S.pass, eventId).then(function (b) {
+        var before = JSON.stringify(S.boards[eventId].groups);
+        S.boards[eventId] = b;
+        if (JSON.stringify(b.groups) !== before) refreshEventCounts(eventId);
+        var lm = document.getElementById('liveMark'); if (lm) lm.innerHTML = '<i></i>' + esc(b.serverTime || '') + ' 時点';
+      }).catch(function () {});
+    }, 45000);
+  }
+  function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  function refreshEventCounts(eventId) {
+    var b = S.boards[eventId];
+    var c = countBoard(b, 0);
+    rollTo('o', c.o); rollTo('x', c.x); rollTo('t', c.t); rollTo('n', c.n);
+    var bar = document.querySelector('.bar');
+    if (bar) { var tot = c.total || 1; bar.children[0].style.width = (c.o * 100 / tot) + '%'; bar.children[1].style.width = (c.t * 100 / tot) + '%'; bar.children[2].style.width = (c.x * 100 / tot) + '%'; }
+    var un = document.querySelector('.unans');
+    var card = document.querySelector('.stats') && document.querySelector('.stats').parentElement;
+    if (card) {
+      if (un) un.remove();
+      if (c.names.length) card.insertAdjacentHTML('beforeend', '<div class="unans"><b>未回答</b> ' + c.names.map(function (n) { return esc(n.replace(/ /g, '')); }).join('、') + '</div>');
+    }
+    var ml = document.getElementById('memberList'); if (ml) ml.innerHTML = membersHtml(b);
+  }
+  // 数字を転がす（Appleの数字が変わる時の気持ちよさ）
+  function rollTo(key, target) {
+    var el = document.querySelector('[data-count="' + key + '"]'); if (!el) return;
+    var from = +el.textContent || 0; if (from === target) return;
+    var start = performance.now(), dur = 500;
+    (function step(now) {
+      var p = Math.min(1, (now - start) / dur); p = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(from + (target - from) * p);
+      if (p < 1) requestAnimationFrame(step);
+    })(start);
+  }
+
+  // ── 回答ブロック（ホームと詳細で共用）
+  function answerBlock(ev, statuses, locked, proxyBy) {
+    var h = '';
+    ev.slots.forEach(function (slot, si) {
+      var st = statuses[si];
+      h += '<div class="slot" data-slot="' + esc(slot) + '" data-si="' + si + '">' +
+        (ev.slots.length > 1 ? '<div class="slot-name">' + esc(slot) + '</div>' : '') +
+        '<div class="seg">' + ansBtn('〇', 'o', '出席', st, locked) + ansBtn('×', 'x', '欠席', st, locked) + ansBtn('△', 't', '未定', st, locked) + '</div>' +
+        '</div>';
+    });
+    h += '<div class="saved" id="saved-' + esc(ev.eventId) + '">' + (locked ? '回答は締め切りました。変更が必要なときは担当役員へ。' : '') + '</div>';
+    if (locked) h = h.replace('class="saved"', 'class="saved show"');
+    return h;
+  }
+  function ansBtn(mark, cls, label, current, locked) {
+    var on = current === mark || (mark === '〇' && current === '○');
+    return '<button class="ans ' + cls + (on ? ' on' : '') + '" data-mark="' + mark + '"' + (locked ? ' disabled' : '') + '><span class="m">' + mark + '</span><span class="l">' + label + '</span></button>';
+  }
+  function bindAnswer(eventId, name, proxyBy) {
+    var root = app;
+    root.querySelectorAll('.slot .ans').forEach(function (btn) {
+      btn.onclick = function () {
+        if (btn.disabled) return;
+        var slotEl = btn.closest('.slot');
+        var slot = slotEl.getAttribute('data-slot');
+        var si = +slotEl.getAttribute('data-si');
+        var mark = btn.getAttribute('data-mark');
+        var already = btn.classList.contains('on');
+        slotEl.querySelectorAll('.ans').forEach(function (b) { b.classList.remove('on'); });
+        var next = already ? '' : mark; // もう一度押すと取り消し
+        if (!already) btn.classList.add('on');
+        applyLocal(eventId, name, si, next);
+        var savedEl = document.getElementById('saved-' + eventId);
+        savedEl.className = 'saved'; savedEl.textContent = '';
+        call('submitAnswer', S.pass, eventId, name, slot, next, proxyBy).then(function (r) {
+          savedEl.textContent = (next ? '保存しました' : '取り消しました') + (r && r.savedAt ? ' ' + r.savedAt : '');
+          savedEl.className = 'saved show';
+          setTimeout(function () { if (savedEl.textContent.indexOf('保存') === 0 || savedEl.textContent.indexOf('取り消') === 0) savedEl.className = 'saved'; }, 2400);
+          if (S.boards[eventId]) refreshEventCounts(eventId);
+        }).catch(function (err) {
+          savedEl.textContent = '保存できませんでした。電波を確認して、もう一度タップしてください。';
+          savedEl.className = 'saved show err';
+          slotEl.querySelectorAll('.ans').forEach(function (b) { b.classList.remove('on'); });
+        });
+      };
+    });
+  }
+  // 手元のデータを先に更新（画面が待たない）
+  function applyLocal(eventId, name, si, st) {
+    var ev = S.events.find(function (e) { return e.eventId === eventId; });
+    if (ev && name === S.me && ev.mineAll) ev.mineAll[si] = st;
+    if (ev && name === S.me && si === 0) {
+      var prev = ev.mine || '';
+      ev.mine = st;
+      var c = ev.counts;
+      function dec(v) { if (v === '〇' || v === '○') c.o--; else if (v === '×') c.x--; else if (v === '△') c.t--; else c.none--; }
+      function inc(v) { if (v === '〇' || v === '○') c.o++; else if (v === '×') c.x++; else if (v === '△') c.t++; else c.none++; }
+      dec(prev); inc(st);
+      var more = document.querySelector('.hero .more');
+      if (more) more.textContent = 'みんなの回答を見る（出席 ' + c.o + ' · 欠席 ' + c.x + ' · 未回答 ' + c.none + '）';
+    }
+    var b = S.boards[eventId];
+    if (b) { var m = findMember(b, name); if (m) m.status[si] = st; }
+  }
+  // 備考欄（ホームの「つぎの予定」と詳細で共用）。例: 「1時間遅れての参加になります」
+  function noteBlock(comment, locked) {
+    return '<div class="slot"><div class="slot-name">備考 <span class="hint" style="font-weight:400">遅刻・途中参加など、ひとこと</span></div>' +
+      '<textarea class="note" id="note" rows="1" maxlength="200" placeholder="例: 1時間遅れての参加になります"' + (locked ? ' disabled' : '') + '>' + esc(comment || '') + '</textarea>' +
+      '<div class="saved" id="noteSaved"></div></div>';
+  }
+  function bindNote(eventId, me, onSave) {
+    var ta = document.getElementById('note'); if (!ta) return;
+    var savedEl = document.getElementById('noteSaved');
+    var last = me.comment || '', timer = null;
+    function grow() { ta.style.height = 'auto'; ta.style.height = Math.max(44, ta.scrollHeight) + 'px'; }
+    grow();
+    function save() {
+      var v = ta.value.trim();
+      if (v === last) return;
+      last = v; me.comment = v;
+      if (onSave) onSave(v);
+      call('saveComment', S.pass, eventId, me.name, v, '').then(function (r) {
+        savedEl.textContent = '備考を保存しました' + (r && r.savedAt ? ' ' + r.savedAt : ''); savedEl.className = 'saved show';
+        setTimeout(function () { savedEl.className = 'saved'; }, 2400);
+        var b = S.boards[eventId]; if (b) { var mm = findMember(b, me.name); if (mm) mm.comment = v; }
+        var ml = document.getElementById('memberList'); if (ml && b) ml.innerHTML = membersHtml(b);
+      }).catch(function () { savedEl.textContent = '保存できませんでした'; savedEl.className = 'saved show err'; });
+    }
+    ta.addEventListener('input', function () { grow(); clearTimeout(timer); timer = setTimeout(save, 1200); });
+    ta.addEventListener('blur', function () { clearTimeout(timer); save(); });
+  }
+  function proxyTap(eventId, name, si) {
+    var b = S.boards[eventId]; var ev = b.event;
+    var m = findMember(b, name); if (!m) return;
+    var cur = m.status[si] || '';
+    var next = cur === '' ? '〇' : (cur === '〇' || cur === '○') ? '×' : cur === '×' ? '△' : '';
+    m.status[si] = next;
+    var ml = document.getElementById('memberList'); if (ml) ml.innerHTML = membersHtml(b);
+    call('submitAnswer', S.pass, eventId, name, ev.slots[si], next, S.me).then(function () {
+      toast(name.replace(/ /g, '') + ' さん: ' + (next || '未回答') + ' で記録');
+      refreshEventCounts(eventId);
+    }).catch(function (err) { toast('保存できませんでした: ' + err.message); m.status[si] = cur; if (ml) ml.innerHTML = membersHtml(b); });
+  }
+  function loadHistory(eventId) {
+    var el = document.getElementById('hist');
+    if (el.getAttribute('data-loaded')) return;
+    el.innerHTML = '<div class="loading" style="padding:16px 0">読み込み中</div>';
+    call('getEventHistory', S.pass, eventId).then(function (rows) {
+      el.setAttribute('data-loaded', '1');
+      if (!rows.length) { el.innerHTML = '<div class="hint" style="padding:4px 0 12px">まだ記録がありません</div>'; return; }
+      var ev = S.boards[eventId].event;
+      el.innerHTML = rows.map(function (r) {
+        var v = r.slot === '備考' ? '備考: ' + esc(r.comment) : (ev.slots.length > 1 ? esc(r.slot) + ' ' : '') + (r.changed ? esc(r.before) + ' → ' : '') + esc(r.status || '未回答');
+        return '<div class="h-row' + (r.changed ? ' changed' : '') + '"><span class="t num">' + esc(r.time) + '</span><span class="n">' + esc(r.name.replace(/ /g, '')) + '</span><span class="v">' + v + (r.by && r.by !== r.name ? ' <span class="hint">（代理: ' + esc(r.by.replace(/ /g, '')) + '）</span>' : '') + '</span></div>';
+      }).join('');
+    }).catch(function () { el.innerHTML = '<div class="hint">履歴を読み込めませんでした</div>'; });
+  }
+
+  // ── 個人
+  function viewPerson(name) {
+    app.innerHTML = '<div class="screen"><a class="back" href="#" data-go="home">一覧</a><div class="loading">読み込み中</div></div>';
+    bindNav();
+    call('getPersonHistory', S.pass, name).then(function (p) {
+      var circ = 2 * Math.PI * 48;
+      var h = '<div class="screen"><a class="back" href="#" data-go="home">一覧</a>' +
+        '<div class="card"><div class="eyebrow">' + esc(p.member.committee) + (p.member.role ? ' · ' + esc(p.member.role) : '') + '</div>' +
+        '<h3 class="ev-title" style="margin-bottom:16px">' + esc(p.member.name) + '</h3>' +
+        '<div class="ring-wrap"><div class="ring"><svg width="108" height="108" viewBox="0 0 108 108"><circle class="track" cx="54" cy="54" r="48"></circle><circle class="val" cx="54" cy="54" r="48" stroke-dasharray="' + circ + '" stroke-dashoffset="' + circ + '" id="ringVal"></circle></svg><div class="n num">' + p.rate + '<small>%</small></div></div>' +
+        '<div><div class="caption">出席率<span class="hint">（締め切った予定 ' + p.counts.total + '件）</span></div><div class="counts num"><span>出席 <b>' + p.counts.o + '</b></span><span>欠席 <b>' + p.counts.x + '</b></span><span>未定 <b>' + p.counts.t + '</b></span><span>未回答 <b>' + p.counts.none + '</b></span></div></div></div></div>';
+      h += '<h2 class="section">これまでの回答</h2><div class="list">' + p.rows.map(function (r) {
+        var d = splitDate(r.date);
+        return '<div class="row tap" data-go="event" data-id="' + esc(r.eventId) + '"><div class="date-col' + (r.date ? '' : ' blank') + '"><div class="d num">' + (r.date ? d.md : '未定') + '</div>' + (r.date ? '<div class="w">' + d.w + '</div>' : '') + '</div>' +
+          '<div class="main"><div class="t" style="font-weight:500">' + esc(displayTitle(r.name)) + '</div>' + (r.comment ? '<div class="c">' + esc(r.comment) + '</div>' : '') + '</div>' +
+          '<div class="marks">' + r.status.map(markHtml).join('') + '</div></div>';
+      }).join('') + '</div></div>';
+      app.innerHTML = h; bindNav();
+      requestAnimationFrame(function () { setTimeout(function () { var rv = document.getElementById('ringVal'); if (rv) rv.style.strokeDashoffset = circ * (1 - p.rate / 100); }, 60); });
+    }).catch(renderError);
+  }
+
+  // ── 役員
+  function viewAdmin(tab) {
+    var tabs = [['summary', '集計', 'summary'], ['add', '登録', 'addEvent'], ['bulk', '一括', 'bulkAdd'], ['remind', 'リマインド', 'remind'], ['tools', 'その他', 'tools']]
+      .filter(function (t) { return can(t[2]); });
+    if (!tabs.length) { render({ view: 'home' }, false); return; }
+    if (!tabs.some(function (t) { return t[0] === tab; })) tab = tabs[0][0];
+    var h = '<div class="screen"><a class="back" href="#" data-go="home">一覧</a><div><div class="eyebrow">' + esc(S.tierLabel ? S.tierLabel + 'のメニュー' : 'メニュー') + '</div><h1 class="title" style="font-size:24px">運営</h1></div>' +
+      '<div class="tabs">' + tabs.map(function (t) { return '<button data-tab="' + t[0] + '"' + (t[0] === tab ? ' class="on"' : '') + '>' + t[1] + '</button>'; }).join('') + '</div><div id="adminBody" style="margin-top:12px"><div class="loading">読み込み中</div></div></div>';
+    app.innerHTML = h; bindNav();
+    app.querySelectorAll('.tabs button').forEach(function (b) { b.onclick = function () { render({ view: 'admin', tab: b.getAttribute('data-tab'), id: S.view.id }, true); }; });
+    var body = document.getElementById('adminBody');
+    if (tab === 'summary') adminSummary(body);
+    else if (tab === 'add') adminAdd(body);
+    else if (tab === 'bulk') adminBulk(body);
+    else if (tab === 'remind') adminRemind(body, S.view.id);
+    else adminTools(body);
+  }
+  function adminSummary(body) {
+    call('getAdminSummary', S.pass).then(function (s) {
+      S.adminDb = s.dbUrl;
+      var evs = s.events.filter(function (e) { return e.date; });
+      var h = '<div class="card"><div class="eyebrow">全員 × 全予定（主枠）</div><div class="hint">出席率の分母は締め切った予定だけ。横にスクロールできます。</div>' +
+        '<div class="table-wrap" style="margin-top:10px"><table class="mx"><thead><tr><th>名前</th><th>出席率</th>' + evs.map(function (e) { return '<th title="' + esc(e.title || e.name) + '">' + esc((e.date || '').slice(5).replace('/', '/')) + '<br><span style="font-weight:400">' + esc((e.title || e.name).slice(0, 6)) + '</span></th>'; }).join('') + '</tr></thead><tbody>';
+      s.members.forEach(function (m) {
+        h += '<tr><td><a href="#" data-go="person" data-name="' + esc(m.name) + '" style="color:inherit">' + esc(m.name.replace(/ /g, '')) + '</a> <span class="hint">' + esc(m.committee.replace(/委員会$/, '')) + '</span></td><td class="rate num">' + m.rate + '%</td>';
+        s.events.forEach(function (e, i) { if (!e.date) return; var st = m.statuses[i]; h += '<td>' + (st === null ? '<span class="hint">-</span>' : (st ? markHtml(st) : '<span class="hint">·</span>')) + '</td>'; });
+        h += '</tr>';
+      });
+      h += '</tbody></table></div></div>';
+      h += '<div class="card" style="margin-top:10px"><div class="eyebrow">データ</div><div style="margin-top:8px;font-size:13px"><a href="' + esc(s.dbUrl) + '" target="_blank" rel="noopener">DBスプレッドシートを開く</a></div>' + (s.graphUrl ? '<div style="margin-top:6px;font-size:13px"><a href="' + esc(s.graphUrl) + '" target="_blank" rel="noopener">人脈グラフを開く</a></div>' : '') + '</div>';
+      body.innerHTML = h; bindNav();
+    }).catch(function (e) { body.innerHTML = '<div class="card err">' + esc(e.message) + '</div>'; });
+  }
+  function adminAdd(body) {
+    call('getCommittees', S.pass).then(function (cs) {
+      body.innerHTML = '<div class="card">' +
+        '<label class="field"><div class="lab">事業名</div><input class="input" id="f-name" placeholder="10月例会"></label>' +
+        '<label class="field"><div class="lab">開催日</div><input class="input num" id="f-date" placeholder="2027/01/14" inputmode="numeric"></label>' +
+        '<label class="field"><div class="lab">場所</div><input class="input" id="f-place" placeholder="豊中商工会議所"></label>' +
+        '<label class="field"><div class="lab">回答枠（複数はカンマ区切り。空なら「出欠」だけ）</div><input class="input" id="f-slots" placeholder="出欠,懇親会"></label>' +
+        '<label class="field"><div class="lab">締切（空なら開催日の3日前 18:00）</div><input class="input num" id="f-deadline" placeholder="2027/01/11 18:00"></label>' +
+        '<label class="field"><div class="lab">対象</div><select class="input" id="f-target"><option value="全員">全員</option>' + cs.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select><div class="hint">正副＝理事長・直前・専務・副理事長・監事／理事会＝正副＋委員長・副委員長＋財政・事務局長／財政局＝財審用</div></label>' +
+        '<label class="field"><div class="lab">補足（任意）</div><textarea class="note" id="f-bg" rows="2" placeholder="服装・持ち物・会費など"></textarea></label>' +
+        '<div class="err" id="f-err"></div><div style="margin-top:16px"><button class="btn full" id="f-go">登録する</button></div></div>';
+      document.getElementById('f-go').onclick = function () {
+        var btn = this; btn.disabled = true;
+        var data = { name: v('f-name'), date: v('f-date'), place: v('f-place'), slots: v('f-slots'), deadline: v('f-deadline'), target: v('f-target'), background: v('f-bg') };
+        call('addEvent', S.pass, data).then(function () { toast('登録しました'); return load(); }).then(function () { render({ view: 'home' }, true); })
+          .catch(function (e) { btn.disabled = false; document.getElementById('f-err').textContent = e.message; });
+      };
+    });
+    function v(id) { return document.getElementById(id).value; }
+  }
+  function adminBulk(body) {
+    body.innerHTML = '<div class="card"><div class="eyebrow">一括登録</div><div class="hint" style="margin-top:4px">1行1件。順番: 日付, 事業名, 場所, 回答枠, 締切, 対象。場所以降は省略可。回答枠の複数は「;」区切り。対象は 全員／正副／理事会／財政局／委員会名。同じ事業名は飛ばします。</div>' +
+      '<textarea class="bulk" id="bulk" placeholder="2027/01/14,1月例会,,出欠;懇親会\n2027/02/10,2月例会"></textarea>' +
+      '<div style="margin-top:12px"><button class="btn full" id="bulkGo">まとめて登録</button></div><div id="bulkRes" style="margin-top:10px;font-size:13px"></div></div>';
+    document.getElementById('bulkGo').onclick = function () {
+      var btn = this; btn.disabled = true;
+      call('bulkAddEvents', S.pass, document.getElementById('bulk').value).then(function (r) {
+        document.getElementById('bulkRes').innerHTML = '<div class="ok-msg">追加 ' + r.added.length + '件</div>' + (r.added.length ? '<div class="hint">' + r.added.map(esc).join('<br>') + '</div>' : '') +
+          (r.skipped.length ? '<div class="caption" style="margin-top:6px">同名のため飛ばした: ' + r.skipped.map(esc).join('、') + '</div>' : '') +
+          (r.bad.length ? '<div class="err">読めなかった行: ' + r.bad.map(esc).join(' / ') + '</div>' : '');
+        btn.disabled = false; return load();
+      }).catch(function (e) { btn.disabled = false; document.getElementById('bulkRes').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+    };
+  }
+  function adminRemind(body, preselect) {
+    var open = S.events.filter(function (e) { return !e.past; });
+    body.innerHTML = '<div class="card"><div class="eyebrow">未回答の人にLINEで知らせる</div>' +
+      '<label class="field"><div class="lab">予定</div><select class="input" id="r-ev">' + open.map(function (e) { return '<option value="' + esc(e.eventId) + '"' + (e.eventId === preselect ? ' selected' : '') + '>' + esc((e.date || '未定') + ' ' + (e.title || e.name)) + '</option>'; }).join('') + '</select></label>' +
+      '<div id="r-body" style="margin-top:12px"></div></div>';
+    var sel = document.getElementById('r-ev');
+    function draw() {
+      var rb = document.getElementById('r-body'); rb.innerHTML = '<div class="loading" style="padding:12px 0">読み込み中</div>';
+      call('getReminderPreview', S.pass, sel.value).then(function (p) {
+        rb.innerHTML = '<div class="caption">未回答 ' + p.unanswered.length + '名</div><pre class="preview" id="r-text">' + esc(p.text) + '</pre>' +
+          '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn quiet" id="r-copy">文面をコピー</button>' +
+          (p.lineConfigured ? '<button class="btn" id="r-send">LINEグループへ送る</button>' : '<span class="hint" style="align-self:center">LINE未接続（コピーして貼る）</span>') + '</div><div id="r-res" style="margin-top:8px;font-size:13px"></div>';
+        document.getElementById('r-copy').onclick = function () { copyText(p.text).then(function () { toast('コピーしました'); }); };
+        var sb = document.getElementById('r-send');
+        if (sb) sb.onclick = function () {
+          if (!confirm('LINEグループに送ります。よろしいですか？')) return;
+          sb.disabled = true;
+          call('sendLineReminder', S.pass, sel.value).then(function (r) { document.getElementById('r-res').innerHTML = '<span class="ok-msg">' + (r.sent ? r.count + '名分を送りました' : esc(r.reason || '送信なし')) + '</span>'; })
+            .catch(function (e) { sb.disabled = false; document.getElementById('r-res').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; });
+        };
+      }).catch(function (e) { rb.innerHTML = '<div class="err">' + esc(e.message) + '</div>'; });
+    }
+    if (open.length) draw(); else document.getElementById('r-body').innerHTML = '<div class="hint">これからの予定がありません</div>';
+    sel.onchange = draw;
+  }
+  function adminTools(body) {
+    body.innerHTML = '<div class="card"><div class="eyebrow">配布用リンク</div><div class="caption" style="margin-top:4px">LINEグループに貼る共通リンクです。</div><pre class="preview" style="font-size:12px;word-break:break-all">' + esc(S.appUrl) + '</pre><div style="margin-top:10px"><button class="btn quiet small" id="copyApp">コピー</button></div></div>' +
+      '<div class="card" style="margin-top:10px"><div class="eyebrow">名簿の直し方</div><div class="caption" style="margin-top:4px">入会・卒業・役職の反映は専務が行います（DBシートの「名簿」を直接直すか、GASエディタで resetRosterFromCode を実行）。この画面からは変更できません。</div></div>';
+    document.getElementById('copyApp').onclick = function () { copyText(S.appUrl).then(function () { toast('コピーしました'); }); };
+  }
+
+  // ── 印刷用
+  function viewPrint(eventId) {
+    app.innerHTML = '<div class="loading">読み込み中</div>';
+    call('getEventBoard', S.pass, eventId).then(function (b) {
+      var ev = b.event; var c = countBoard(b, 0);
+      var h = '<div class="screen"><a class="back no-print" href="#" data-go="event" data-id="' + esc(eventId) + '">戻る</a>' +
+        '<div style="padding:12px 0 6px"><div class="eyebrow">豊中青年会議所 出欠</div><h3 class="ev-title">' + esc(ev.title || ev.name) + '</h3><div class="caption num">' + esc(ev.date) + (ev.place ? ' · ' + esc(ev.place) : '') + ' · 出席 ' + c.o + ' / 欠席 ' + c.x + ' / 未定 ' + c.t + ' / 未回答 ' + c.n + '</div></div>' +
+        '<div class="table-wrap"><table class="mx" style="width:100%"><thead><tr><th style="text-align:left">委員会</th><th style="text-align:left">名前</th>' + ev.slots.map(function (s) { return '<th>' + esc(s) + '</th>'; }).join('') + '<th style="text-align:left">備考</th></tr></thead><tbody>';
+      b.groups.forEach(function (g) { g.members.forEach(function (m) {
+        h += '<tr><td style="position:static">' + esc(g.committee) + '</td><td style="text-align:left">' + esc(m.name) + '</td>' + m.status.map(function (s) { return '<td>' + esc(s || '') + '</td>'; }).join('') + '<td style="text-align:left;white-space:normal">' + esc(m.comment) + '</td></tr>';
+      }); });
+      h += '</tbody></table></div><div class="no-print" style="margin-top:16px"><button class="btn" onclick="window.print()">印刷 / PDFに保存</button></div></div>';
+      app.innerHTML = h; bindNav();
+    }).catch(renderError);
+  }
+
+  // ── 本人専用リンク（端末の記憶が消えても名前選びを飛ばせる）
+  function showMyLink() {
+    if (!S.me) return;
+    var url = S.appUrl + (S.appUrl.indexOf('?') === -1 ? '?' : '&') + 'me=' + encodeURIComponent(S.me);
+    copyText(url).then(function () { toast('自分専用リンクをコピーしました。LINEのKeepメモに貼っておくと便利です'); })
+      .catch(function () { prompt('このリンクを保存してください', url); });
+  }
+
+  // ── 共通部品
+  function bindNav() {
+    app.querySelectorAll('[data-go]').forEach(function (el) {
+      el.onclick = function (e) {
+        e.preventDefault();
+        var v = el.getAttribute('data-go');
+        if (v === 'pick') return render({ view: 'pick', next: { view: 'home' } }, true);
+        go({ view: v, id: el.getAttribute('data-id') || undefined, name: el.getAttribute('data-name') || undefined, tab: el.getAttribute('data-tab') || undefined });
+      };
+    });
+  }
+  function findMember(b, name) {
+    var f = null; b.groups.forEach(function (g) { g.members.forEach(function (m) { if (m.name === name) f = m; }); }); return f;
+  }
+  function markHtml(st) {
+    if (st === '〇' || st === '○') return '<span class="mark o">〇</span>';
+    if (st === '×') return '<span class="mark x">×</span>';
+    if (st === '△') return '<span class="mark t">△</span>';
+    if (!st) return '<span class="mark n">·</span>';
+    return '<span class="mark other">' + esc(st) + '</span>';
+  }
+  function deadlineLine(ev) {
+    if (!ev.deadline && !ev.date) return '';
+    var txt, cls = '';
+    if (ev.closed) { txt = '回答は締め切りました'; cls = ' over'; }
+    else if (ev.deadline) {
+      var days = daysUntil(ev.deadline.slice(0, 10));
+      txt = '回答期限 ' + ev.deadline.slice(5, 16).replace(/^(\d\d)\/(\d\d)/, '$1/$2') + (days > 1 ? ' · あと' + days + '日' : days === 1 ? ' · 明日まで' : ' · 今日まで');
+      if (days <= 2) cls = ' soon';
+    } else {
+      var d2 = daysUntil(ev.date);
+      txt = d2 > 0 ? '開催まで あと' + d2 + '日' : '本日開催';
+    }
+    return '<div class="deadline num' + cls + '"><span class="dot"></span>' + esc(txt) + '</div>';
+  }
+  function daysUntil(ymd) {
+    var a = new Date(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10));
+    var t = S.today ? new Date(+S.today.slice(0, 4), +S.today.slice(5, 7) - 1, +S.today.slice(8, 10)) : new Date();
+    return Math.round((a - t) / 86400000);
+  }
+  var WD = ['日', '月', '火', '水', '木', '金', '土'];
+  function splitDate(ymd) {
+    if (!ymd || !/^\d{4}\/\d{2}\/\d{2}/.test(ymd)) return { md: '', w: '' };
+    var y = +ymd.slice(0, 4), m = +ymd.slice(5, 7), d = +ymd.slice(8, 10);
+    return { md: m + '/' + d, w: WD[new Date(y, m - 1, d).getDay()] };
+  }
+  function displayTitle(name) {
+    return String(name || '').replace(/[（(【\[]\s*(総務|拡大|共育|地域|専務|開発|山﨑|山崎)\s*[）)】\]]/g, '').replace(/終了$/, '').trim();
+  }
+  function normName(v) {
+    return String(v || '').replace(/[︀-️]/g, '').replace(/\uDB40[\uDD00-\uDDEF]/g, '').replace(/[\s　]+/g, ' ').trim();
+  }
+  function copyText(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t);
+    return new Promise(function (res, rej) {
+      var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); res(); } catch (e) { rej(e); } document.body.removeChild(ta);
+    });
+  }
+  var toastTimer = null;
+  function toast(msg) {
+    var t = document.getElementById('toast'); t.textContent = msg; t.className = 'show';
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.className = ''; }, 2800);
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  boot();
+})();
+</script>
+</body>
+</html>
