@@ -100,6 +100,7 @@
   .mark.other { font-size: 11px; width: auto; padding: 0 8px; border-radius: 14px; color: var(--sub); }
   .marks { display: flex; gap: 6px; }
   .chip { font-size: 12px; color: var(--hint); }
+  .nw { white-space: nowrap; }
   .quick { display: flex; gap: 8px; flex-shrink: 0; }
   /* クイック入力のある行（スマホ幅で予定名が切れないように）: 名前は2行まで折り返す・右端の > は出さない（行タップで詳細は開く） */
   .row.has-quick { gap: 10px; padding-right: 12px; }
@@ -111,6 +112,9 @@
   .qa:active { transform: scale(.94); }
   .qa.o.on { background: var(--ok); border-color: transparent; color: #fff; }
   .qa.x.on { background: var(--ng); border-color: transparent; color: #fff; }
+  /* 詳細で△(未定)にした予定: 〇×どちらも点かないので、ボタンの上に「未定」と出して未回答と区別する */
+  .quick.tbd { position: relative; }
+  .quick.tbd::before { content: '未定'; position: absolute; bottom: -14px; left: 0; right: 0; text-align: center; font-size: 10px; font-weight: 600; color: var(--tbd); }
 
   /* ── 回答ボタン ── */
   .slot { margin-top: 14px; }
@@ -463,7 +467,9 @@
       h += '<h2 class="section" style="margin-top:6px">つぎの予定</h2><div class="card"><div class="empty" style="padding:8px 0">まだ登録されていません</div></div>';
     }
     if (rest.length) {
-      h += '<h2 class="section">これから</h2><div class="list">' + rest.map(eventRow).join('') + '</div>';
+      h += '<h2 class="section">これから</h2>' +
+        (S.me && rest.some(function (e) { return e.forMe; }) ? '<div class="hint" style="margin:-4px 2px 8px">〇×は押すとすぐ保存されます。もう一度押すと取り消し。△や備考は予定を開いて入れます。</div>' : '') +
+        '<div class="list">' + rest.map(eventRow).join('') + '</div>';
     }
     if (undated.length) {
       h += '<h2 class="section">日付が未定</h2><div class="list">' + undated.map(eventRow).join('') + '</div>';
@@ -518,7 +524,7 @@
       deadlineLine(ev);
     h += answerBlock(ev, mineStatuses(ev), false, '');
     if (S.me && ev.mineAll) h += noteBlock(ev.mineComment || '', false);
-    h += '<a href="#" class="more" data-go="event" data-id="' + esc(ev.eventId) + '">みんなの回答を見る（出席 ' + ev.counts.o + ' · 欠席 ' + ev.counts.x + ' · 未回答 ' + ev.counts.none + '）</a>';
+    h += '<a href="#" class="more" data-go="event" data-id="' + esc(ev.eventId) + '">' + moreText(ev) + '</a>';
     h += '</div>';
     return h;
   }
@@ -534,20 +540,24 @@
     if (S.me && ev.forMe === false) right = '<span class="chip">対象外</span>';
     else if (S.me && ev.forMe && !(ev.closed && !can('lateEdit'))) {
       // クイック入力: 一覧から〇×だけ付けられる（主枠。△や他の枠・備考は詳細画面で）
-      right = '<div class="quick">' + [['〇', 'o', '出席'], ['×', 'x', '欠席']].map(function (q) {
+      right = '<div class="quick' + (mine === '△' ? ' tbd' : '') + '">' + [['〇', 'o', '出席'], ['×', 'x', '欠席']].map(function (q) {
         return '<button type="button" class="qa ' + q[1] + (mine === q[0] || (q[0] === '〇' && mine === '○') ? ' on' : '') + '" data-eid="' + esc(ev.eventId) + '" data-mark="' + q[0] + '" aria-label="' + q[2] + '">' + q[0] + '</button>';
       }).join('') + '</div>';
     }
     else right = mine ? markHtml(mine) : (ev.past || ev.closed ? '<span class="chip">未回答</span>' : '<span class="chip" style="color:var(--accent)">未回答</span>');
-    var quick = right.indexOf('class="quick"') !== -1;
+    var quick = right.indexOf('class="quick') !== -1;
     return '<div class="row tap' + (quick ? ' has-quick' : '') + '" data-go="event" data-id="' + esc(ev.eventId) + '">' +
       '<div class="date-col' + (ev.date ? '' : ' blank') + '"><div class="d num">' + (ev.date ? d.md : '未定') + '</div>' + (ev.date ? '<div class="w">' + d.w + '</div>' : '') + '</div>' +
       '<div class="main"><div class="t">' + esc(ev.title || ev.name) + '</div><div class="c num">' + countsText(ev, quick) + '</div></div>' +
       right + '<div class="chev"></div></div>';
   }
-  function countsText(ev, compact) {   // compact=クイック入力のある行（幅が狭いので空白を詰める）
+  function moreText(ev) { return 'みんなの回答を見る<span class="nw">（' + countsText(ev) + '）</span>'; }
+  function countsText(ev, compact) {   // compact=クイック入力のある行（幅が狭いので空白を詰める）。「未回/答」のように語の途中で折り返さないよう1項目ずつ nowrap
     var s = compact ? '' : ' ', dot = compact ? '·' : ' · ';
-    return '出席' + s + ev.counts.o + dot + '欠席' + s + ev.counts.x + (ev.counts.t ? dot + '未定' + s + ev.counts.t : '') + dot + '未回答' + s + ev.counts.none;
+    var items = [['出席', ev.counts.o], ['欠席', ev.counts.x]];
+    if (ev.counts.t) items.push(['未定', ev.counts.t]);
+    items.push(['未回答', ev.counts.none]);
+    return items.map(function (it) { return '<span class="nw">' + it[0] + s + it[1] + '</span>'; }).join(dot);
   }
   // 一覧のクイック入力。タップで即保存、同じ印をもう一度で取り消し。行の「詳細を開く」には伝えない
   function bindQuick() {
@@ -563,12 +573,11 @@
         var prev = ev.mine || '';
         function paint(v) {
           box.querySelectorAll('.qa').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-mark') === v); });
-          var c = box.parentNode.querySelector('.c'); if (c) c.textContent = countsText(ev, true);
+          box.classList.toggle('tbd', v === '△');
+          var c = box.parentNode.querySelector('.c'); if (c) c.innerHTML = countsText(ev, true);
         }
         applyLocal(eid, S.me, 0, next); paint(next);
-        call('submitAnswer', S.pass, eid, S.me, ev.slots[0], next, '').then(function () {
-          toast((ev.title || ev.name) + ' を' + (next === '〇' ? '出席' : next === '×' ? '欠席' : '未回答') + 'にしました');
-        }).catch(function (err) {
+        call('submitAnswer', S.pass, eid, S.me, ev.slots[0], next, '').catch(function (err) {
           applyLocal(eid, S.me, 0, prev); paint(prev);
           toast('保存できませんでした。' + err.message);
         });
@@ -751,8 +760,11 @@
         var si = +slotEl.getAttribute('data-si');
         var mark = btn.getAttribute('data-mark');
         var already = btn.classList.contains('on');
-        slotEl.querySelectorAll('.ans').forEach(function (b) { b.classList.remove('on'); });
         var next = already ? '' : mark; // もう一度押すと取り消し
+        var prevBtn = null;
+        slotEl.querySelectorAll('.ans').forEach(function (b) { if (b !== btn && b.classList.contains('on')) prevBtn = b; });
+        var prev = already ? mark : (prevBtn ? prevBtn.getAttribute('data-mark') : '');
+        slotEl.querySelectorAll('.ans').forEach(function (b) { b.classList.remove('on'); });
         if (!already) btn.classList.add('on');
         applyLocal(eventId, name, si, next);
         var savedEl = document.getElementById('saved-' + eventId);
@@ -765,7 +777,9 @@
         }).catch(function (err) {
           savedEl.textContent = '保存できませんでした。電波を確認して、もう一度タップしてください。';
           savedEl.className = 'saved show err';
-          slotEl.querySelectorAll('.ans').forEach(function (b) { b.classList.remove('on'); });
+          // 押す前の状態に戻す（表示と手元の件数の両方）
+          slotEl.querySelectorAll('.ans').forEach(function (b) { b.classList.toggle('on', !!prev && b.getAttribute('data-mark') === prev); });
+          applyLocal(eventId, name, si, prev);
         });
       };
     });
@@ -782,7 +796,7 @@
       function inc(v) { if (v === '〇' || v === '○') c.o++; else if (v === '×') c.x++; else if (v === '△') c.t++; else c.none++; }
       dec(prev); inc(st);
       var more = document.querySelector('.hero .more');
-      if (more) more.textContent = 'みんなの回答を見る（出席 ' + c.o + ' · 欠席 ' + c.x + ' · 未回答 ' + c.none + '）';
+      if (more) more.innerHTML = moreText(ev);
     }
     var b = S.boards[eventId];
     if (b) { var m = findMember(b, name); if (m) m.status[si] = st; }
@@ -850,7 +864,7 @@
       var h = '<div class="screen"><a class="back" href="#" data-go="home">一覧</a>' +
         '<div class="card"><div class="eyebrow">' + esc(p.member.committee) + (p.member.role ? ' · ' + esc(p.member.role) : '') + '</div>' +
         '<h3 class="ev-title" style="margin-bottom:16px">' + esc(p.member.name) + '</h3>' +
-        '<div class="ring-wrap"><div class="ring"><svg width="108" height="108" viewBox="0 0 108 108"><circle class="track" cx="54" cy="54" r="48"></circle><circle class="val" cx="54" cy="54" r="48" stroke-dasharray="' + circ + '" stroke-dashoffset="' + circ + '" id="ringVal"></circle></svg><div class="n num">' + p.rate + '<small>%</small></div></div>' +
+        '<div class="ring-wrap"><div class="ring"><svg width="108" height="108" viewBox="0 0 108 108"><circle class="track" cx="54" cy="54" r="48"></circle><circle class="val" cx="54" cy="54" r="48" stroke-dasharray="' + circ + '" stroke-dashoffset="' + circ + '" id="ringVal"></circle></svg><div class="n num">' + (p.counts.total ? p.rate + '<small>%</small>' : '—') + '</div></div>' +
         '<div><div class="caption">出席率<span class="hint">（締め切った予定 ' + p.counts.total + '件）</span></div><div class="counts num"><span>出席 <b>' + p.counts.o + '</b></span><span>欠席 <b>' + p.counts.x + '</b></span><span>未定 <b>' + p.counts.t + '</b></span><span>未回答 <b>' + p.counts.none + '</b></span></div></div></div></div>';
       h += '<h2 class="section">これまでの回答</h2><div class="list">' + p.rows.map(function (r) {
         var d = splitDate(r.date);
@@ -887,7 +901,7 @@
       var h = '<div class="card"><div class="eyebrow">全員 × 全予定（主枠）</div><div class="hint">出席率の分母は締め切った予定だけ。横にスクロールできます。</div>' +
         '<div class="table-wrap" style="margin-top:10px"><table class="mx"><thead><tr><th>名前</th><th>出席率</th>' + evs.map(function (e) { return '<th title="' + esc(e.title || e.name) + '">' + esc((e.date || '').slice(5).replace('/', '/')) + '<br><span style="font-weight:400">' + esc((e.title || e.name).slice(0, 6)) + '</span></th>'; }).join('') + '</tr></thead><tbody>';
       s.members.forEach(function (m) {
-        h += '<tr><td><a href="#" data-go="person" data-name="' + esc(m.name) + '" style="color:inherit">' + esc(m.name.replace(/ /g, '')) + '</a> <span class="hint">' + esc(m.committee.replace(/委員会$/, '')) + '</span></td><td class="rate num">' + m.rate + '%</td>';
+        h += '<tr><td><a href="#" data-go="person" data-name="' + esc(m.name) + '" style="color:inherit">' + esc(m.name.replace(/ /g, '')) + '</a> <span class="hint">' + esc(m.committee.replace(/委員会$/, '')) + '</span></td><td class="rate num">' + (m.counts.total ? m.rate + '%' : '—') + '</td>';
         s.events.forEach(function (e, i) { if (!e.date) return; var st = m.statuses[i]; h += '<td>' + (st === null ? '<span class="hint">-</span>' : (st ? markHtml(st) : '<span class="hint">·</span>')) + '</td>'; });
         h += '</tr>';
       });
@@ -931,7 +945,7 @@
     };
   }
   function adminRemind(body, preselect) {
-    var open = S.events.filter(function (e) { return !e.past; });
+    var open = S.events.filter(function (e) { return !e.past && !(e.counts && e.counts.total === 0); });   // 対象0名（例: 財政局が未登録の財審）は出さない
     body.innerHTML = '<div class="card"><div class="eyebrow">未回答の人にLINEで知らせる</div>' +
       '<label class="field"><div class="lab">予定</div><select class="input" id="r-ev">' + open.map(function (e) { return '<option value="' + esc(e.eventId) + '"' + (e.eventId === preselect ? ' selected' : '') + '>' + esc((e.date || '未定') + ' ' + (e.title || e.name)) + '</option>'; }).join('') + '</select></label>' +
       '<div id="r-body" style="margin-top:12px"></div></div>';
